@@ -28,7 +28,7 @@ module.exports = class MinesweeperCommand extends Command {
 		const current = this.client.games.get(msg.channel.id);
 		if (current) return msg.reply(`Please wait until the current game of \`${current.name}\` is finished.`);
 		try {
-			const arr = minesweeper.createMineArray({
+			const arr = minesweeper.generateMineArray({
 				rows: size,
 				cols: size,
 				mines: size + 1
