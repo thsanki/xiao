@@ -1,5 +1,5 @@
 const Command = require('../../structures/Command');
-const BombSweeper = require('bombsweeper.js');
+const minesweeper = require('minesweeper');
 const { stripIndents } = require('common-tags');
 const nums = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
 
@@ -28,17 +28,19 @@ module.exports = class MinesweeperCommand extends Command {
 		const current = this.client.games.get(msg.channel.id);
 		if (current) return msg.reply(`Please wait until the current game of \`${current.name}\` is finished.`);
 		try {
-			const game = new BombSweeper(size, size);
+			const arr = minesweeper.createMineArray({
+				rows: size,
+				cols: size,
+				mines: size + 1
+			});
+			const game = new minesweeper.Board(arr);
 			this.client.games.set(msg.channel.id, { name: this.name, data: game });
-			game.PlaceBombs(size + 1); // eslint-disable-line new-cap
-			let win = null;
-			game.onWin = () => { win = true; };
-			game.onLoss = () => { win = false; };
-			while (win === null) {
+			while (this.checkStatus(game) === null) {
+				const grid = game.grid();
 				await msg.say(stripIndents`
 					${msg.author}, what coordinates do you pick (ex. 4,5)? Type \`end\` to forefeit.
 
-					${this.displayBoard(game.board, game.mask)}
+					${this.displayBoard(grid)}
 				`);
 				const filter = res => {
 					if (res.author.id !== msg.author.id) return false;
@@ -48,8 +50,7 @@ module.exports = class MinesweeperCommand extends Command {
 					if (!coordPicked) return false;
 					const x = Number.parseInt(coordPicked[1], 10);
 					const y = Number.parseInt(coordPicked[2], 10);
-					console.log(game.mask[x - 1][y - 1]);
-					if (game.mask[x - 1][y - 1]) return false;
+					if (this.checkCellShow(grid[x - 1][y - 1])) return false;
 					return true;
 				};
 				const turn = await msg.channel.awaitMessages(filter, {
@@ -68,15 +69,14 @@ module.exports = class MinesweeperCommand extends Command {
 				const coordPicked = choice.match(/(\d), ?(\d)/i);
 				const x = Number.parseInt(coordPicked[1], 10);
 				const y = Number.parseInt(coordPicked[2], 10);
-				game.CheckCell(x - 1, y - 1); // eslint-disable-line new-cap
-				if (win === true || win === false) break;
+				game.openCell(x - 1, y - 1);
 			}
 			this.client.games.delete(msg.channel.id);
 			if (win === null) return msg.say('Game ended due to inactivity.');
 			return msg.say(stripIndents`
 				${win ? 'Nice job! You win!' : 'Sorry... You lose.'}
 
-				${this.displayBoard(game.board)}
+				${this.displayBoard(game.grid(), true)}
 			`);
 		} catch (err) {
 			this.client.games.delete(msg.channel.id);
@@ -84,21 +84,21 @@ module.exports = class MinesweeperCommand extends Command {
 		}
 	}
 
-	displayBoard(board, mask) {
+	displayBoard(board, forceShowAll = false) {
 		let str = '';
 		str += '⬛';
 		str += nums.slice(0, board.length).join('');
 		str += '\n';
 		for (let i = 0; i < board.length; i++) {
 			str += nums[i];
-			board[i].forEach((item, j) => {
-				if (!mask || mask[i][j]) {
-					if (item === '*') {
+			board[i].forEach(cell => {
+				if (forceShowAll || this.checkCellShow(cell)) {
+					if (cell.isMine) {
 						str += '💣';
-					} else if (item === 0) {
+					} else if (cell.numAdjacentMines === 0) {
 						str += '⬜';
 					} else {
-						str += nums[item - 1];
+						str += nums[cell.numAdjacentMines - 1];
 					}
 				} else {
 					str += '❓';
@@ -107,5 +107,16 @@ module.exports = class MinesweeperCommand extends Command {
 			str += '\n';
 		}
 		return str;
+	}
+
+	checkStatus(game) {
+		if (game.status() === minesweeper.BoardStateEnum.WON) return true;
+		if (game.status() === minesweeper.BoardStateEnum.LOST) return false;
+		return null;
+	}
+
+	checkCellShow(cell) {
+		if (cell.state === minesweeper.CellStateEnum.OPEN) return true;
+		return false;
 	}
 };
