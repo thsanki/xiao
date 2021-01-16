@@ -62,19 +62,16 @@ module.exports = class MinesweeperCommand extends Command {
 					break;
 				}
 				const choice = turn.first().content;
-				if (choice.toLowerCase() === 'end') {
-					win = false;
-					break;
-				}
+				if (choice.toLowerCase() === 'end') break;
 				const coordPicked = choice.match(/(\d), ?(\d)/i);
 				const x = Number.parseInt(coordPicked[1], 10);
 				const y = Number.parseInt(coordPicked[2], 10);
 				game.openCell(x - 1, y - 1);
 			}
 			this.client.games.delete(msg.channel.id);
-			if (win === null) return msg.say('Game ended due to inactivity.');
+			if (this.checkStatus(game) === null) return msg.say('Game ended due to inactivity.');
 			return msg.say(stripIndents`
-				${win ? 'Nice job! You win!' : 'Sorry... You lose.'}
+				${this.checkStatus(game) ? 'Nice job! You win!' : 'Sorry... You lose.'}
 
 				${this.displayBoard(game.grid(), true)}
 			`);
